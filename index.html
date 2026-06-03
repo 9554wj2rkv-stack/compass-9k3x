@@ -266,6 +266,12 @@
   .flagrow .fbox{width:24px;height:24px;border-radius:7px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;color:transparent;font-size:.78rem;flex:none;transition:.15s;}
   .flagrow.sel{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-deep);}
   .flagrow.sel .fbox{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .counterrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;}
+  .counter-lbl{font-size:.84rem;font-weight:600;color:var(--ink-soft);}
+  .counter-chips{display:flex;gap:6px;}
+  .counter-chips button{min-width:42px;border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 0;font-family:inherit;font-weight:600;font-size:.85rem;color:var(--ink-soft);cursor:pointer;transition:.15s;}
+  .counter-chips button.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .weight-note{font-size:.78rem;color:var(--ink-soft);margin-top:9px;line-height:1.4;}
 
   .score-hero{text-align:center;padding:4px 0 2px;}
   .score-hero .sh-lbl{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);font-weight:700;}
@@ -340,6 +346,15 @@
           <button class="toggle-btn on-no" data-hrt="no"><span class="emoji">○</span>Not taken</button>
         </div>
         <div class="dose-line"><span>Dose</span><input id="doseInput" value="Divigel 1 mg"></div>
+        <div class="group-label" style="margin-top:16px;">Applied to — rotate sites</div>
+        <div class="chips" id="gelSideChips" style="margin-top:8px;">
+          <button class="chip" data-gelside="left">Left</button>
+          <button class="chip" data-gelside="right">Right</button>
+        </div>
+        <div class="chips" id="gelAreaChips" style="margin-top:8px;">
+          <button class="chip" data-gelarea="upper">Upper</button>
+          <button class="chip" data-gelarea="lower">Lower</button>
+        </div>
       </div>
 
       <div class="card">
@@ -347,6 +362,16 @@
         <div id="posMetrics"></div>
         <div class="group-label">Symptoms · lower is better</div>
         <div id="negMetrics"></div>
+      </div>
+
+      <div class="card">
+        <div class="group-label" style="margin-top:0;">Appetite</div>
+        <div class="chips" id="appetiteChips" style="margin-top:8px;">
+          <button class="chip" data-appetite="less">Less</button>
+          <button class="chip" data-appetite="normal">Normal</button>
+          <button class="chip" data-appetite="more">More</button>
+          <button class="chip" data-appetite="muchmore">Much more</button>
+        </div>
       </div>
 
       <div class="card">
@@ -429,7 +454,16 @@
             <div class="num-stepper"><button data-step="sauna" data-d="-1">–</button><div class="nv" id="saunaVal">0</div><button data-step="sauna" data-d="1">+</button></div>
           </div>
         </div>
-        <div class="field"><label>Worst symptom this week</label><input class="date-input" id="worstInput" placeholder="e.g. hot flashes at night"></div>
+        <div class="two" style="margin-top:14px;">
+          <div class="field"><label>Walks this week</label>
+            <div class="num-stepper"><button data-step="walking" data-d="-1">–</button><div class="nv" id="walkingVal">0</div><button data-step="walking" data-d="1">+</button></div>
+          </div>
+          <div class="field"><label>Weight (<span id="weightUnit">kg</span>)</label>
+            <input class="date-input" id="weightInput" inputmode="decimal" placeholder="—" style="text-align:center;">
+          </div>
+        </div>
+        <div class="weight-note" id="weightNote"></div>
+        <div class="field" style="margin-top:14px;"><label>Worst symptom this week</label><input class="date-input" id="worstInput" placeholder="e.g. hot flashes at night"></div>
         <div class="field"><label>Best improvement this week</label><input class="date-input" id="bestInput" placeholder="e.g. sleeping through the night"></div>
         <button class="btn btn-primary btn-full" id="saveWeek" style="margin-top:16px;">Save week</button>
       </div>
@@ -494,10 +528,14 @@ const METRICS = [
   {id:'energy',     name:'Energy',         ico:'⚡', dir:'pos', anchor:['drained','energised']},
   {id:'mood',       name:'Mood',           ico:'🌤️', dir:'pos', anchor:['low','great']},
   {id:'sleep',      name:'Sleep',          ico:'🌙', dir:'pos', anchor:['terrible','restful']},
+  {id:'clarity',    name:'Mental clarity', ico:'🧠', dir:'pos', anchor:['foggy','sharp']},
   {id:'libido',     name:'Libido',         ico:'🔥', dir:'pos', anchor:['none','high']},
-  {id:'nightwaking',name:'Night waking',   ico:'⏰', dir:'neg', anchor:['slept through','awake all night']},
+  {id:'nightwaking',name:'Night waking',   ico:'⏰', dir:'neg', anchor:['slept through','awake all night'],
+     counter:{id:'wokeCount', label:'Times woke', options:[['0',0],['1',1],['2',2],['3+',3]]},
+     flag:{id:'woke24', label:'Woke between 2–4 am', ico:'🌙'}},
   {id:'anxiety',    name:'Anxiety / tension', ico:'🌀', dir:'neg', anchor:['none','severe']},
   {id:'hotflash',   name:'Hot flashes / sweating', ico:'♨️', dir:'neg', anchor:['none','severe']},
+  {id:'nausea',     name:'Nausea',         ico:'🤢', dir:'neg', anchor:['none','severe']},
   {id:'headache',   name:'Headache', ico:'🤕', dir:'neg', anchor:['none','severe'], flag:{id:'migraine', label:'Migraine occurred today', ico:'🤯'}},
   {id:'musclepain', name:'Muscle / joint pain', ico:'🦴', dir:'neg', anchor:['none','severe']},
   {id:'constipation',name:'Constipation',  ico:'🚽', dir:'neg', anchor:['none','severe']},
@@ -508,10 +546,12 @@ const SCORE_ITEMS = [
   {id:'sleep', name:'Sleep', better:'high'},
   {id:'mood', name:'Mood', better:'high'},
   {id:'energy', name:'Energy', better:'high'},
+  {id:'clarity', name:'Mental clarity', better:'high'},
   {id:'libido', name:'Libido', better:'high'},
   {id:'nightwaking', name:'Night waking', better:'low'},
   {id:'anxiety', name:'Anxiety / tension', better:'low'},
   {id:'hotflash', name:'Hot flashes', better:'low'},
+  {id:'nausea', name:'Nausea', better:'low'},
   {id:'headache', name:'Headache', better:'low'},
   {id:'migraine', name:'Migraine (days)', better:'low', freq:true},
   {id:'musclepain', name:'Muscle / joint pain', better:'low'},
@@ -562,6 +602,13 @@ function buildMetricRow(m){
     b.onclick=()=>setMetric(m.id,i);
     scale.appendChild(b);
   }
+  if(m.counter){
+    const cw=document.createElement('div'); cw.className='counterrow';
+    cw.innerHTML=`<span class="counter-lbl">${m.counter.label}</span>`;
+    const chips=document.createElement('div'); chips.className='counter-chips'; chips.id='counter-'+m.counter.id;
+    m.counter.options.forEach(([label,val])=>{ const b=document.createElement('button'); b.dataset.val=val; b.textContent=label; b.onclick=()=>setCounter(m.counter.id,val); chips.appendChild(b); });
+    cw.appendChild(chips); wrap.appendChild(cw);
+  }
   if(m.tags){
     const tw=document.createElement('div'); tw.className='tagrow'; tw.id='tags-'+m.id;
     m.tags.forEach(t=>{ const b=document.createElement('button'); b.className='tag'; b.dataset.tag=t; b.textContent=t; b.onclick=()=>toggleTag(m.id,t); tw.appendChild(b); });
@@ -594,6 +641,15 @@ function paintFlag(id){
   const el=document.getElementById('flag-'+id); if(!el) return;
   el.classList.toggle('sel', !!curDay()[id]);
 }
+function setCounter(id,val){
+  const d=DB.days[curDate]||(DB.days[curDate]={});
+  d[id]=val; paintCounter(id);
+}
+function paintCounter(id){
+  const d=curDay(); const v=d[id];
+  const cw=document.getElementById('counter-'+id); if(!cw) return;
+  [...cw.children].forEach(b=> b.classList.toggle('sel', v!=null && String(v)===b.dataset.val));
+}
 function renderMetricInputs(){
   const pos=document.getElementById('posMetrics'); const neg=document.getElementById('negMetrics');
   pos.innerHTML=''; neg.innerHTML='';
@@ -624,9 +680,12 @@ function renderToday(){
   tagEl.textContent = tag;
   document.getElementById('datePicker').value = curDate;
   // values
-  METRICS.forEach(m=>{ paintMetric(m.id); if(m.tags) paintTags(m.id); if(m.flag) paintFlag(m.flag.id); });
+  METRICS.forEach(m=>{ paintMetric(m.id); if(m.tags) paintTags(m.id); if(m.flag) paintFlag(m.flag.id); if(m.counter) paintCounter(m.counter.id); });
   paintHrt();
   document.querySelectorAll('#dayBleedChips .chip').forEach(c=>c.classList.toggle('sel', (curDay().bleeding||'')===c.dataset.dbleed));
+  document.querySelectorAll('#appetiteChips .chip').forEach(c=>c.classList.toggle('sel', (curDay().appetite||'')===c.dataset.appetite));
+  document.querySelectorAll('#gelSideChips .chip').forEach(c=>c.classList.toggle('sel', (curDay().gelSide||'')===c.dataset.gelside));
+  document.querySelectorAll('#gelAreaChips .chip').forEach(c=>c.classList.toggle('sel', (curDay().gelArea||'')===c.dataset.gelarea));
   document.getElementById('doseInput').value = curDay().dose || DB.meta.dose || 'Divigel 1 mg';
   document.getElementById('notesInput').value = curDay().notes || '';
   document.getElementById('dNext').style.visibility = (curDate>=today())?'hidden':'visible';
@@ -649,7 +708,7 @@ function startCandidate(){
   const ds=Object.keys(DB.days).filter(k=>hasData(DB.days[k])).sort();
   return ds[0] || curDate;
 }
-function hasData(d){ return d && (d.hrt || d.notes || d.migraine || (d.bleeding && d.bleeding!=='none') || (d.histamineTags&&d.histamineTags.length) || METRICS.some(m=>d[m.id]!=null)); }
+function hasData(d){ return d && (d.hrt || d.notes || d.migraine || d.woke24 || d.wokeCount!=null || d.appetite || d.gelSide || d.gelArea || (d.bleeding && d.bleeding!=='none') || (d.histamineTags&&d.histamineTags.length) || METRICS.some(m=>d[m.id]!=null)); }
 
 /* ============================================================
    CYCLE
@@ -706,27 +765,37 @@ function cap(s){ return s? s[0].toUpperCase()+s.slice(1):s; }
 /* ============================================================
    WEEKLY
    ============================================================ */
-let weekState={gym:0,sauna:0,recovery:null};
+let weekState={gym:0,sauna:0,walking:0,recovery:null};
 function renderWeek(){
-  const data = DB.weeks[curWeek] || {gym:0,sauna:0,recovery:null,worst:'',best:''};
-  weekState = {gym:data.gym||0, sauna:data.sauna||0, recovery:data.recovery||null};
+  const data = DB.weeks[curWeek] || {gym:0,sauna:0,walking:0,recovery:null,worst:'',best:'',weight:''};
+  weekState = {gym:data.gym||0, sauna:data.sauna||0, walking:data.walking||0, recovery:data.recovery||null};
   const isThis = curWeek===mondayOf(today());
   document.getElementById('weekLabel').textContent = isThis?'This week':(fmtShort(curWeek)+' – '+fmtShort(addDays(curWeek,6)));
   document.getElementById('weekSub').textContent = 'Week of '+fmtShort(curWeek)+' – '+fmtShort(addDays(curWeek,6));
   document.getElementById('gymVal').textContent=weekState.gym;
   document.getElementById('saunaVal').textContent=weekState.sauna;
+  document.getElementById('walkingVal').textContent=weekState.walking;
+  document.getElementById('weightInput').value=data.weight||'';
   document.getElementById('worstInput').value=data.worst||'';
   document.getElementById('bestInput').value=data.best||'';
   document.querySelectorAll('#recoveryChips .chip').forEach(c=>c.classList.toggle('sel',c.dataset.rec===weekState.recovery));
   document.getElementById('wNext').style.visibility = (curWeek>=mondayOf(today()))?'hidden':'visible';
+  const note=document.getElementById('weightNote');
+  if(DB.meta.startWeight){
+    note.textContent='Starting weight: '+DB.meta.startWeight+' kg ('+fmtShort(DB.meta.startWeightDate)+').';
+  } else { note.textContent='Your first saved weight becomes your starting weight.'; }
 }
 function saveWeek(){
+  const wRaw=document.getElementById('weightInput').value.trim();
+  const weight = wRaw===''? '' : (parseFloat(wRaw.replace(',','.'))||'');
   DB.weeks[curWeek]={
-    gym:weekState.gym, sauna:weekState.sauna, recovery:weekState.recovery,
+    gym:weekState.gym, sauna:weekState.sauna, walking:weekState.walking, recovery:weekState.recovery,
+    weight: weight,
     worst:document.getElementById('worstInput').value.trim(),
     best:document.getElementById('bestInput').value.trim()
   };
-  save(); toast('Week saved');
+  if(weight!=='' && !DB.meta.startWeight){ DB.meta.startWeight=weight; DB.meta.startWeightDate=curWeek; }
+  save(); renderWeek(); toast('Week saved');
 }
 
 /* ============================================================
@@ -777,6 +846,40 @@ function scorecard(winStart, winEnd){
 }
 function pctStr(n){ return (n>0?'+':'')+n+'%'; }
 function pctClass(cls){ return cls==='improving'?'pct-up':cls==='worse'?'pct-down':'pct-flat'; }
+function weightSeries(){
+  return Object.keys(DB.weeks).filter(w=>DB.weeks[w].weight!=='' && DB.weeks[w].weight!=null)
+    .sort().map(w=>({d:w, v:DB.weeks[w].weight}));
+}
+function renderWeightCard(){
+  const series=weightSeries();
+  if(!DB.meta.startWeight && !series.length) return null;
+  const card=document.createElement('div'); card.className='card';
+  const start=DB.meta.startWeight;
+  const latest=series.length? series[series.length-1].v : null;
+  let change='—', cls='stable';
+  if(start!=null && latest!=null){
+    const diff=+(latest-start).toFixed(1);
+    change=(diff>0?'+':'')+diff+' kg';
+    cls = diff<0?'improving' : diff>0?'worse' : 'stable';
+  }
+  const pts=series.map(s=>({d:s.d, v:s.v}));
+  let spark='<div class="avg-line" style="color:var(--ink-faint)">Log weight on 2+ weeks to see a trend.</div>';
+  if(pts.length>=2){
+    const vs=pts.map(p=>p.v), mn=Math.min(...vs), mx=Math.max(...vs), pad=(mx-mn)*0.15||1;
+    const W=300,H=70,P=6, lo=mn-pad, hi=mx+pad, mxX=pts.length-1;
+    const x=i=>P+(i/mxX)*(W-2*P), y=v=>H-P-((v-lo)/(hi-lo))*(H-2*P);
+    let d=''; pts.forEach((p,i)=>d+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1)+' ');
+    const dots=pts.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="2.4" fill="var(--accent)"/>`).join('');
+    spark=`<svg class="spark" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none">
+      <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>${dots}</svg>`;
+  }
+  card.innerHTML=`<div class="pcard-top"><div class="pcard-name"><span>⚖️</span>Weight</div>
+      <span class="badge ${cls}">${change}</span></div>
+    ${spark}
+    <div class="avg-line"><span>Starting</span><b>${start!=null?start+' kg':'—'}</b></div>
+    <div class="avg-line"><span>Latest</span><b>${latest!=null?latest+' kg':'—'}</b></div>`;
+  return card;
+}
 
 function renderScorecard(){
   const end=today(), start=addDays(end,-(progRange-1));
@@ -893,6 +996,7 @@ function renderProgress(){
   body.appendChild(head);
 
   body.appendChild(renderScorecard());
+  const wc=renderWeightCard(); if(wc) body.appendChild(wc);
 
   METRICS.forEach(m=>{
     const pts=valuesInRange(m.id,start,end);
@@ -931,7 +1035,7 @@ function buildReport(){
     : '  • None recorded';
   const notes=days.filter(k=>DB.days[k].notes).slice(-6).map(k=>`  • ${fmtShort(k)}: ${DB.days[k].notes}`);
   const weekly=Object.keys(DB.weeks).filter(w=>w>=s||addDays(w,6)>=s).sort();
-  let weeklyTxt = weekly.length? weekly.slice(-4).map(w=>{const x=DB.weeks[w];return `  • Wk of ${fmtShort(w)}: recovery ${x.recovery||'—'}, gym ${x.gym||0}, sauna ${x.sauna||0}${x.best?'; +'+x.best:''}${x.worst?'; −'+x.worst:''}`;}).join('\n') : '  • None recorded';
+  let weeklyTxt = weekly.length? weekly.slice(-4).map(w=>{const x=DB.weeks[w];return `  • Wk of ${fmtShort(w)}: recovery ${x.recovery||'—'}, gym ${x.gym||0}, walks ${x.walking||0}, sauna ${x.sauna||0}${(x.weight!==''&&x.weight!=null)?', '+x.weight+'kg':''}${x.best?'; +'+x.best:''}${x.worst?'; −'+x.worst:''}`;}).join('\n') : '  • None recorded';
   const lbl = reportRange==='all'?'All time':('Last '+reportRange+' days');
 
   // Scorecard
@@ -964,6 +1068,23 @@ function buildReport(){
   const triggers=htK.length? htK.map(t=>`${t} ×${htc[t]}`).join(', ') : 'none noted';
   const evs=[...DB.events].sort((a,b)=>a.date.localeCompare(b.date));
   const eventsTxt=evs.length? evs.map(ev=>`  • ${fmtShort(ev.date)}  ${ev.text}`).join('\n') : '  • None recorded';
+  // Night waking detail
+  const wokeVals=days.map(k=>DB.days[k].wokeCount).filter(v=>v!=null);
+  const avgWoke=wokeVals.length? (wokeVals.reduce((a,b)=>a+b,0)/wokeVals.length).toFixed(1) : '—';
+  const woke24N=days.filter(k=>DB.days[k].woke24).length;
+  // Appetite distribution
+  const appMap={less:'Less',normal:'Normal',more:'More',muchmore:'Much more'};
+  const appCount={}; days.forEach(k=>{const a=DB.days[k].appetite; if(a)appCount[a]=(appCount[a]||0)+1;});
+  const appK=Object.keys(appCount).sort((a,b)=>appCount[b]-appCount[a]);
+  const appetiteTxt=appK.length? appK.map(a=>`${appMap[a]} ×${appCount[a]}`).join(', ') : 'not tracked';
+  // Weight
+  const wSeries=weightSeries();
+  const startW=DB.meta.startWeight, latestW=wSeries.length?wSeries[wSeries.length-1].v:null;
+  let weightTxt='  Not tracked';
+  if(startW!=null||latestW!=null){
+    const diff=(startW!=null&&latestW!=null)? (latestW-startW).toFixed(1) : null;
+    weightTxt=`  Starting ${startW!=null?startW+' kg':'—'} · Latest ${latestW!=null?latestW+' kg':'—'}${diff!=null?` · Change ${diff>0?'+':''}${diff} kg`:''}`;
+  }
 
   return `HRT PROGRESS SUMMARY
 ${'─'.repeat(34)}
@@ -973,23 +1094,30 @@ HRT / dose     : ${DB.meta.dose||'Divigel 1 mg'}
 Adherence      : ${taken}/${days.length} days taken
 Days logged    : ${days.length}
 Migraine days  : ${migN}
+Night waking   : avg ${avgWoke} times/night · woke 2–4am on ${woke24N} days
 
 HRT SCORECARD
 ${scText}
 
 AVERAGE SCORES (0–10)
   Sleep .............. ${A('sleep')}   (higher better)
+  Mental clarity ..... ${A('clarity')}   (higher better)
   Mood ............... ${A('mood')}   (higher better)
   Energy ............. ${A('energy')}   (higher better)
   Libido ............. ${A('libido')}   (higher better)
   Night waking ....... ${A('nightwaking')}   (lower better)
   Anxiety/tension .... ${A('anxiety')}   (lower better)
   Hot flashes ........ ${A('hotflash')}   (lower better)
+  Nausea ............. ${A('nausea')}   (lower better)
   Headache ........... ${A('headache')}   (lower better)
   Muscle/joint pain .. ${A('musclepain')}   (lower better)
   Constipation ....... ${A('constipation')}   (lower better)
   Histamine/allergy .. ${A('histamine')}   (lower better)
   Histamine triggers : ${triggers}
+  Appetite ........... ${appetiteTxt}
+
+WEIGHT
+${weightTxt}
 
 WEEK MILESTONES (avg)        Wk1 / Wk4 / Wk8 / Wk12
   Sleep        : ${ms('sleep')}
@@ -1020,13 +1148,15 @@ Generated ${fmtShort(today())} · HRT Compass (self-tracked data)`;
 function ms(id){ return [1,4,8,12].map(w=>{const v=weekWindowAvg(id,w);return v==null?'—':v.toFixed(1);}).join(' / '); }
 function renderReport(){ document.getElementById('reportBox').textContent = buildReport(); }
 function exportCsv(){
-  const cols=['date','hrt','dose',...METRICS.map(m=>m.id),'migraine','bleeding','histamineTags','cycleDay','notes'];
+  const cols=['date','hrt','dose',...METRICS.map(m=>m.id),'migraine','wokeCount','woke24','appetite','gelSide','gelArea','bleeding','histamineTags','cycleDay','notes'];
   let rows=[cols.join(',')];
   Object.keys(DB.days).sort().forEach(k=>{
     const d=DB.days[k];
     const r=[k, d.hrt||'', '"'+(d.dose||DB.meta.dose||'')+'"',
       ...METRICS.map(m=>d[m.id]==null?'':d[m.id]),
-      d.migraine?1:0, d.bleeding||'', '"'+((d.histamineTags||[]).join('; '))+'"',
+      d.migraine?1:0, d.wokeCount==null?'':d.wokeCount, d.woke24?1:0,
+      d.appetite||'', d.gelSide||'', d.gelArea||'',
+      d.bleeding||'', '"'+((d.histamineTags||[]).join('; '))+'"',
       cycleDayFor(k)||'', '"'+((d.notes||'').replace(/"/g,'""'))+'"'];
     rows.push(r.join(','));
   });
@@ -1073,6 +1203,7 @@ function bind(){
     METRICS.forEach(m=>{ if(y[m.id]!=null) d[m.id]=y[m.id]; });
     if(y.hrt) d.hrt=y.hrt; if(y.dose) d.dose=y.dose;
     if(y.migraine) d.migraine=y.migraine;
+    if(y.appetite) d.appetite=y.appetite;
     if(y.histamineTags) d.histamineTags=[...y.histamineTags];
     renderToday(); toast('Copied yesterday — tweak as needed');
   };
@@ -1087,6 +1218,14 @@ function bind(){
     const d=DB.days[curDate]||(DB.days[curDate]={}); d.bleeding=c.dataset.dbleed;
     document.querySelectorAll('#dayBleedChips .chip').forEach(x=>x.classList.toggle('sel',x===c));
   });
+  // appetite + gel site (single-select day fields)
+  const singleSel=(sel,attr,field)=>document.querySelectorAll(sel+' .chip').forEach(c=>c.onclick=()=>{
+    const d=DB.days[curDate]||(DB.days[curDate]={}); d[field]=c.dataset[attr];
+    document.querySelectorAll(sel+' .chip').forEach(x=>x.classList.toggle('sel',x===c));
+  });
+  singleSel('#appetiteChips','appetite','appetite');
+  singleSel('#gelSideChips','gelside','gelSide');
+  singleSel('#gelAreaChips','gelarea','gelArea');
   // significant events (Progress journal)
   document.getElementById('addEvent').onclick=addEvent;
   // week
